@@ -11,10 +11,10 @@ db_user = os.getenv("MYSQL_NAME")
 db_password = os.getenv("MYSQL_PASSWORD")
 db_name = os.getenv("MYSQL_DATABASE")
 
-log_file = '/root/files/error_log.txt'
+log_file = '/root/files/info_log.txt'
 block_file = '/root/files/last_processed_block.txt'
 
-logging.basicConfig(filename=log_file, level=logging.ERROR)
+logging.basicConfig(filename=log_file, level=logging.INFO)
 
 web3 = Web3(Web3.HTTPProvider(infura_url))
 
@@ -46,7 +46,7 @@ try:
             block = web3.eth.get_block(block_number, True)  # Get info about the block
         except HTTPError as e:
             if e.response.status_code == 429:  # 429 is the HTTP status code for "Too Many Requests"
-                logging.warning("Infura API rate limit exceeded. Sleeping for a while.")
+                logging.info("Infura API rate limit exceeded. Sleeping for a while.")
                 time.sleep(86400)  # Sleep for 60 seconds
                 continue
             else:
