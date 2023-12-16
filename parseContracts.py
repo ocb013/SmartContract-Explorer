@@ -63,12 +63,14 @@ try:
                     insert_query = "INSERT IGNORE INTO contract_addresses (address) VALUES (%s)"
                     cursor.execute(insert_query, (to_address,))
                     logging.info("Find a new contract: %s", to_address)
+                    
+        connection.commit()
 
         # Rewrite last checked block
         with open(block_file, 'w') as file:
             file.write(str(block_number))
 
-    connection.commit()
+        
 
 except Exception as e:
     logging.error("Error: %s", str(e), exc_info=True)
