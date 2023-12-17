@@ -35,11 +35,10 @@ except (FileNotFoundError, ValueError):
 latest_block_number = web3.eth.block_number
 logging.info("Last block: %d", latest_block_number)
 
-# Database connection
-try:
-    connection = pymysql.connect(host=db_host, user=db_user, password=db_password, database=db_name)
-    cursor = connection.cursor()
+connection = pymysql.connect(host=db_host, user=db_user, password=db_password, database=db_name)
+cursor = connection.cursor()
 
+try:
     logging.info("Starting a search")
     for block_number in range(start_block, latest_block_number + 1):
         try:
@@ -59,10 +58,19 @@ try:
             if to_address:
                 code = web3.eth.get_code(to_address)
                 if code and code != '0x':
-                    # Unique addresses in the table
-                    insert_query = "INSERT IGNORE INTO contract_addresses (address) VALUES (%s)"
-                    cursor.execute(insert_query, (to_address,))
-                    logging.info("Find a new contract: %s", to_address)
+                    try:
+                        # Unique addresses in the table
+                        insert_query = "INSERT IGNORE INTO contract_addresses (address) VALUES (%s)"
+                        cursor.execute(insert_query, (to_address,))
+                        logging.info("Find a new contract: %s", to_address)
+                    except pymysql.err.OperationalError as db_error:
+                        # Handle database connection error
+                        logging.error("Database connection error: %s", str(db_error))
+                        logging.info("Reconnecting to the database...")
+                        connection.close()
+                        connection = connect_to_database()
+                        cursor = connection.cursor()
+                        logging.info("Reconnected to the database.")
                     
         connection.commit()
 
