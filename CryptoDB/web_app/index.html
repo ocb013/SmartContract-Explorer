@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ваш заголовок</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div id="filters-container">
+        <div id="filters">
+            <form id="filterForm">
+                <label for="chainNameFilter">Chain Name:</label>
+                <select id="chainNameFilter" name="chainNameFilter">
+                    <option value="all">All</option>
+                    <option value="ETH">ETH</option>
+                    <option value="OPT">OPT</option>
+                    <option value="ARB">ARB</option>
+                    <option value="BSC">BSC</option>
+                </select>
+
+                <label for="verifiedCodeFilter">Verified Code:</label>
+                <select id="verifiedCodeFilter" name="verifiedCodeFilter">
+                    <option value="all">All</option>
+                    <option value="1">Verified</option>
+                    <option value="0">Not Verified</option>
+                </select>
+            
+                <label for="ethBalanceOperator">ETH Balance Operator:</label>
+                <select id="ethBalanceOperator" name="ethBalanceOperator">
+                    <option value="eq">=</option>
+                    <option value="ge">>=</option>
+                    <option value="le"><=</option>
+                </select>
+            
+                <input type="number" id="ethBalanceValue" placeholder="Enter ETH Balance">
+            
+                <label for="usdBalanceOperator">USD Balance Operator:</label>
+                <select id="usdBalanceOperator" name="usdBalanceOperator">
+                    <option value="eq">=</option>
+                    <option value="ge">>=</option>
+                    <option value="le"><=</option>
+                </select>
+
+                <input type="number" id="usdBalanceValue" placeholder="Enter USD Balance">
+
+                <button type="button" id="applyFiltersButton">Apply Filters</button>
+            </form>
+        </div>
+    </div>
+    <div class="downloadSol_wrapper">
+        <button type="button" id="downloadSolButton">Download .sol</button>
+    </div>
+    <h2>Checked block information</h2>
+    <table class="block_info">
+        <tr>
+            <td>ETH</td>
+            <td><div id="ethTextData"></div></td>
+        </tr>
+        <tr>
+            <td>OPT</td>
+            <td><div id="optTextData"></div></td>
+        </tr>
+        <tr>
+            <td>ARB</td>
+            <td><div id="arbTextData"></div></td>
+        </tr>
+        <tr>
+            <td>BSC</td>
+            <td><div id="bscTextData"></div></td>
+        </tr>
+    </table>
+    <h1>Все записи</h1>
+    <div class="page_input_wrapper">
+        <label for="pageInput2">Page: </label>
+        <input type="number" id="pageInput2" class="pageInput" value="{{ request.args.get('page', 1) }}">
+    </div>
+    <table id="data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Contract Address</th>
+                <th>Verified Code</th>
+                <th>Tokens list</th>
+                <th>Token balance</th>
+                <th>Notes</th> 
+                <th>Contract Name</th>
+                <th>Contract USD Balance</th>
+                <th>Contract ETH Balance</th>
+                <th>Chain</th>
+                
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in data %}
+                <tr>
+                    <td>{{ item.id }}</td>
+                    <td>{{ item.contract_address }}</td>
+                    <td>{{ item.verified_code }}</td>
+                    <td class="td-container">
+                        <div class="token-list-container">{{ item.tokens_list }}</div>
+                    </td>
+                    <td class="td-container">
+                        <div class="tokens-balance-container">{{ item.tokens_balances }}</div>
+                    </td>                 
+                    <td>
+                        <form id="noteForm{{ item.id }}" class="note-form">
+                            <div class="note-container">
+                                <input type="text" id="noteText{{ item.id }}" value="{{ item.notes or '' }}" />
+                                <div class="button-container">
+                                    <button type="button" class="save" onclick="saveNote('{{ item.id }}')">✔</button>
+                                    <button type="button" class="{{ 'delete_active' if item.notes else 'delete_inactive' }}" onclick="deleteNote('{{ item.id }}')">✖</button>
+                                </div>
+                            </div>
+                        </form>
+                    </td>
+    
+                    <td>{{ item.contract_name }}</td>
+                    <td>{{ item.contract_usd_balance }}</td>
+                    <td>{{ item.contract_eth_balance }}</td>
+                    <td>{{ item.chain }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="page_input_wrapper">
+        <label for="pageInput1">Page: </label>
+        <input type="number" id="pageInput1" class="pageInput" value="{{ request.args.get('page', 1) }}">
+    </div>
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+    <script>
+        // Check if there are saved filter values in localStorage
+        var savedFilters = JSON.parse(localStorage.getItem('filters')) || {};
+        var savedPage = localStorage.getItem('page') || '1';
+        var savedPageInput = localStorage.getItem('pageInput') || '1';
+        $('#chainNameFilter').val(savedFilters.chain_name || 'all');
+        $('#verifiedCodeFilter').val(savedFilters.verified_code || 'all');
+        $('#ethBalanceOperator').val(savedFilters.eth_balance_operator || 'eq');
+        $('#ethBalanceValue').val(savedFilters.eth_balance_value || '');
+        $('#usdBalanceOperator').val(savedFilters.usd_balance_operator || 'eq');
+        $('#usdBalanceValue').val(savedFilters.usd_balance_value || '');
+        $('.pageInput').val(savedPageInput);
+        // Apply saved filters on page load, only if they have already been saved
+        if (Object.keys(savedFilters).length > 0) {
+            applyFilters();
+        }
+
+        $(document).ready(function () {
+            loadTextData('eth');
+            loadTextData('opt'); 
+            loadTextData('arb'); 
+            loadTextData('bsc'); 
+        });
+        
+        function loadTextData(chain) {
+            $.get(`/get_text_data/${chain}`, function (data) {
+                $(`#${chain}TextData`).text(data);
+            });
+        }
+    
+        function applyFilters() {
+            var verifiedCodeFilter = $('#verifiedCodeFilter').val();
+            var ethBalanceOperator = $('#ethBalanceOperator').val();
+            var ethBalanceValue = $('#ethBalanceValue').val();
+            var usdBalanceOperator = $('#usdBalanceOperator').val();
+            var usdBalanceValue = $('#usdBalanceValue').val();
+            var chainNameFilter = $('#chainNameFilter').val();
+    
+
+            var filters = {
+                verified_code: verifiedCodeFilter,
+                eth_balance_operator: ethBalanceOperator,
+                eth_balance_value: ethBalanceValue,
+                usd_balance_operator: usdBalanceOperator,
+                usd_balance_value: usdBalanceValue,
+                page: savedPageInput,
+                chain_name: chainNameFilter
+            };
+
+            localStorage.setItem('filters', JSON.stringify(filters));
+            localStorage.setItem('page', savedPageInput);
+    
+            // Очищаем таблицу перед добавлением новых данных
+            $('#data-table tbody').empty();
+    
+            // Отправляем запрос с использованием сохраненных фильтров
+            $.get('/apply_filters', filters, function (data) {
+                $.each(data, function (index, item) {
+                    var newRow = $('<tr>');
+                    newRow.append('<td>' + item.id + '</td>');
+                    newRow.append('<td>' + item.contract_address + '</td>');
+                    newRow.append('<td>' + item.verified_code + '</td>');
+                    newRow.append('<td class="td-container"><div class="token-list-container">' + item.tokens_list + '</div></td>');
+                    newRow.append('<td class="td-container"><div class="tokens-balance-container">' + item.tokens_balances + '</div></td>');
+
+                    var formInput = '" class="note-form"><div class="note-container"><input type="text" id="noteText' + item.id + '" value="';
+
+                    newRow.append('<td><form id="noteForm' + item.id + formInput + (item.notes || '') + '" /><div class="button-container"><button type="button" class="save" onclick="saveNote(\'' + item.id + '\')">✔</button>' + '<button type="button" class="delete" onclick="deleteNote(\'' + item.id + '\')">✖</button>' + '</div></form></td>');
+                    newRow.append('<td>' + item.contract_name + '</td>');
+                    newRow.append('<td>' + item.contract_usd_balance + '</td>');
+                    newRow.append('<td>' + item.contract_eth_balance + '</td>');
+                    newRow.append('<td>' + item.chain + '</td>');
+
+                    var deleteButtonClass = item.notes ? 'delete_active' : 'delete_inactive';
+                    newRow.find('.delete').addClass(deleteButtonClass);
+                    newRow.find('.delete').removeClass('delete');
+
+                    $('#data-table tbody').append(newRow);
+                });
+            });
+        }
+
+        $('#downloadSolButton').on('click', function() {
+            var filters = {
+                verified_code: $('#verifiedCodeFilter').val(),
+                eth_balance_operator: $('#ethBalanceOperator').val(),
+                eth_balance_value: $('#ethBalanceValue').val(),
+                usd_balance_operator: $('#usdBalanceOperator').val(),
+                usd_balance_value: $('#usdBalanceValue').val(),
+                chain_name: $('#chainNameFilter').val()
+            };
+        
+            // Создаем URL для скачивания Zip-архива
+            var downloadUrl = '/download_zip?' + $.param(filters);
+        
+            // Создаем временную ссылку для скачивания
+            var downloadLink = document.createElement('a');
+            downloadLink.href = downloadUrl;
+            downloadLink.download = 'contracts.zip';
+        
+            // Добавляем ссылку в DOM и эмулируем клик для скачивания
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+        });
+    
+        // Обработчик события для кнопки применения фильтров
+        $('#applyFiltersButton').on('click', function() {
+            applyFilters();
+        });
+
+        $('.pageInput').on('input', function () {
+            var updatedPage = $(this).val();
+            $('#pageInput1').val(updatedPage);
+            $('#pageInput2').val(updatedPage);
+            savedPageInput = updatedPage;
+    
+            localStorage.setItem('pageInput', savedPageInput);
+    
+            applyFilters();
+        });
+    
+
+        function saveNote(contractId) {
+            var noteText = $('#noteText' + contractId).val();
+    
+            $.post('/add_note', { contract_id: contractId, note_text: noteText }, function (data) {
+                alert('Note saved successfully');
+            });
+        }
+    
+        function deleteNote(contractId) {
+            $.post('/delete_note', { contract_id: contractId }, function (data) {
+                alert('Note deleted successfully');
+            });
+        }
+
+    </script>
+</body>
+</html>
